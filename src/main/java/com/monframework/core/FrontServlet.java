@@ -1,11 +1,13 @@
 package com.monframework.core;
 
 import jakarta.servlet.*;
+import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.*;
 
 import java.io.File;
 import java.io.IOException;
 
+@WebServlet(name = "FrontServlet", urlPatterns = {"/"}, loadOnStartup = 1)
 public class FrontServlet extends HttpServlet {
 
     @Override
@@ -18,22 +20,39 @@ public class FrontServlet extends HttpServlet {
     }
 
     @Override
-    protected void service(HttpServletRequest req, HttpServletResponse resp) throws IOException, ServletException{
-        String path = req.getServletPath();
-        ServletContext context = getServletContext();
-        String realUrl = context.getRealPath(path);
+    protected void doGet(HttpServletRequest request, HttpServletResponse response) 
+            throws ServletException, IOException {
+        service(request, response);
+    }
+    
+    @Override
+    protected void doPost(HttpServletRequest request, HttpServletResponse response) 
+            throws ServletException, IOException {
+        service(request, response);
+    }
 
-        if(realUrl != null){
-            File file = new File(realUrl);
-            if (file.exists() && file.isFile()){
-                RequestDispatcher reqDisp = context.getNamedDispatcher("default");
-                reqDisp.forward(req, resp);
-                return ;
+    @Override
+    protected void service(HttpServletRequest req, HttpServletResponse resp) throws IOException, ServletException{
+        String requestURI = req.getRequestURI();
+        String contextPath = req.getContextPath();
+        
+        String resourcePath = requestURI.substring(contextPath.length());
+        
+        try {
+            java.net.URL resource = getServletContext().getResource(resourcePath);
+            if (resource != null) {
+                RequestDispatcher defaultServlet = getServletContext().getNamedDispatcher("default");
+                if (defaultServlet != null) {
+                    defaultServlet.forward(req, resp);
+                    return;
+                }
             }
+        } catch (Exception e) {
+            throw new ServletException("Erreur lors de la vérification de la ressource: " + resourcePath, e);
         }
 
         resp.setContentType("text/plain");
-        resp.getWriter().println("URL :" + path );
+        resp.getWriter().println("URL :" + resourcePath );
         resp.getWriter().println("Methode :"+req.getMethod());
     }
 }
