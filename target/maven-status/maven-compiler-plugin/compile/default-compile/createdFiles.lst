@@ -1,2 +1,3 @@
 com\monframework\annotation\HandleUrl.class
 com\monframework\core\FrontServlet.class
+com\monframework\annotation\ControllerUrl.class
