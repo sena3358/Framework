@@ -1,4 +1,6 @@
 com\monframework\annotation\AnnotationUtils.class
+com\monframework\mapper\RouteMapping.class
 com\monframework\annotation\HandleUrl.class
+com\monframework\finder\ClassFinder.class
 com\monframework\annotation\MyController.class
 com\monframework\core\FrontServlet.class
