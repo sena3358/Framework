@@ -143,12 +143,39 @@ public class FrontServlet extends HttpServlet {
         PrintWriter out = response.getWriter();
 
         // Minimal output: requested path, controller class and method, annotation values
-        out.println("Route trouvée");
-        out.println("URL: " + requestedPath);
-        out.println("Classe: " + route.getClassName());
-        out.println("Méthode: " + route.getMethodName() + "()");
-        out.println("@ControleurAnnotation: " + route.getControllerValue());
-        out.println("@HandleURL: " + route.getUrlValue());
+        // out.println("Route trouvée");
+        // out.println("URL: " + requestedPath);
+        // out.println("Classe: " + route.getClassName());
+        // out.println("Méthode: " + route.getMethodName() + "()");
+        // out.println("@ControleurAnnotation: " + route.getControllerValue());
+        // out.println("@HandleURL: " + route.getUrlValue());
+        try {
+            // Appeler la méthode du contrôleur
+            String result = route.callMethod();
+
+            // Afficher le résultat
+            out.println("Route trouvée et méthode appelée avec succès");
+            out.println("URL: " + requestedPath);
+            out.println("Classe: " + route.getClassName());
+            out.println("Méthode: " + route.getMethodName() + "()");
+            out.println();
+            out.println("Résultat:");
+            out.println(result);
+
+        } catch (Exception e) {
+            // En cas d'erreur lors de l'appel de la méthode
+            out.println("Erreur lors de l'appel de la méthode");
+            out.println("URL: " + requestedPath);
+            out.println("Classe: " + route.getClassName());
+            out.println("Méthode: " + route.getMethodName() + "()");
+            out.println();
+            out.println("Exception: " + e.getClass().getName());
+            out.println("Message: " + e.getMessage());
+
+            // Log l'erreur complète sur la console serveur
+            System.err.println("Erreur lors de l'appel de la méthode " + route.getMethodName() + ":");
+            e.printStackTrace();
+        }
     }
     
     private void showFrameworkPage(HttpServletRequest request, HttpServletResponse response, 

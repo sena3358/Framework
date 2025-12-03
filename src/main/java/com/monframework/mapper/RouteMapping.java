@@ -62,6 +62,37 @@ public class RouteMapping {
     }
 
     /**
+     * Appelle la méthode du contrôleur en utilisant la réflexion.
+     * La méthode doit retourner un String, sinon une exception est levée.
+     * 
+     * @return Le résultat String retourné par la méthode
+     * @throws Exception Si la méthode ne retourne pas un String ou si l'invocation échoue
+     */
+    public String callMethod() throws Exception {
+        // Charger la classe du contrôleur
+        ClassLoader loader = Thread.currentThread().getContextClassLoader();
+        Class<?> clazz = Class.forName(className, true, loader);
+
+        // Créer une instance du contrôleur (constructeur par défaut)
+        Object controllerInstance = clazz.getDeclaredConstructor().newInstance();
+
+        // Trouver la méthode à invoquer
+        Method method = clazz.getDeclaredMethod(methodName);
+
+        // Vérifier que la méthode retourne un String
+        if (!method.getReturnType().equals(String.class)) {
+            throw new Exception("La méthode " + methodName + " de la classe " + className + 
+                              " ne retourne pas un String (retourne: " + method.getReturnType().getName() + ")");
+        }
+
+        // Invoquer la méthode
+        Object result = method.invoke(controllerInstance);
+
+        // Retourner le résultat (déjà vérifié comme String)
+        return (String) result;
+    }
+
+    /**
      * Liste tous les fichiers .class dans un répertoire
      */
     private static List<Path> listClassFiles(Path root) throws IOException {
