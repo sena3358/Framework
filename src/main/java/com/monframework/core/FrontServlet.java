@@ -111,15 +111,20 @@ public class FrontServlet extends HttpServlet {
             routeMap = Collections.emptyMap();
         }
         
+        // Récupérer la méthode HTTP de la requête
+        String httpMethod = request.getMethod();
+        
         // Chercher une route correspondante
-        // D'abord essayer un match exact
-        RouteMapping matchedRoute = routeMap.get(resourcePath);
+        // D'abord essayer un match exact avec la clé "METHOD:URL"
+        String exactKey = httpMethod + ":" + resourcePath;
+        RouteMapping matchedRoute = routeMap.get(exactKey);
         Map<String, String> urlParams = new HashMap<>();
         
         // Si pas de match exact, chercher un pattern dynamique
         if (matchedRoute == null) {
             for (RouteMapping route : routeMap.values()) {
-                if (route.matches(resourcePath)) {
+                // Vérifier à la fois le pattern de l'URL et la méthode HTTP
+                if (route.matches(resourcePath) && route.matchesHttpMethod(httpMethod)) {
                     matchedRoute = route;
                     urlParams = route.extractParams(resourcePath);
                     break;
