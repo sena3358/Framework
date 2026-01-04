@@ -55,8 +55,11 @@ public class FrontServlet extends HttpServlet {
                 System.out.println("[DEBUG]   -> " + rm);
             }
             
-            // Stocker la liste dans le ServletContext
-            ctx.setAttribute("route.mappings", Collections.unmodifiableList(routeMappings));
+            // Convertir la liste en Map pour une recherche rapide
+            Map<String, RouteMapping> routeMap = RouteMapping.toMap(routeMappings);
+            
+            // Stocker le Map dans le ServletContext
+            ctx.setAttribute("route.mappings", Collections.unmodifiableMap(routeMap));
             
         } catch (Exception e) {
             System.err.println("ERROR during route scanning:");
@@ -99,41 +102,27 @@ public class FrontServlet extends HttpServlet {
             // Continuer si ce n'est pas une ressource statique
         }
         
-        // Récupérer la liste des routes depuis le ServletContext
+        // Récupérer le Map des routes depuis le ServletContext
         @SuppressWarnings("unchecked")
-        List<RouteMapping> routeMappings = (List<RouteMapping>) getServletContext().getAttribute("route.mappings");
+        Map<String, RouteMapping> routeMap = (Map<String, RouteMapping>) getServletContext().getAttribute("route.mappings");
         
-        if (routeMappings == null) {
-            routeMappings = Collections.emptyList();
+        if (routeMap == null) {
+            routeMap = Collections.emptyMap();
         }
         
-        // Chercher une route correspondante
-        RouteMapping matchedRoute = findMatchingRoute(routeMappings, resourcePath);
+        // Chercher une route correspondante (recherche directe dans le Map)
+        RouteMapping matchedRoute = routeMap.get(resourcePath);
         
         if (matchedRoute != null) {
             // Route trouvée ! Afficher les informations
             showMatchedRoute(request, response, resourcePath, matchedRoute);
         } else {
             // Aucune route trouvée, afficher la page par défaut
-            showFrameworkPage(request, response, resourcePath, routeMappings);
+            showFrameworkPage(request, response, resourcePath, routeMap);
         }
     }
     
-    /**
-     * Cherche une route correspondant au chemin demandé
-     */
-    private RouteMapping findMatchingRoute(List<RouteMapping> routeMappings, String requestedPath) {
-        for (RouteMapping route : routeMappings) {
-            String fullUrl = route.getFullUrl();
-            
-            System.out.println("[DEBUG] Comparing requested: '" + requestedPath + "' with route: '" + fullUrl + "'");
-            
-            if (requestedPath.equals(fullUrl)) {
-                return route;
-            }
-        }
-        return null;
-    }
+
     
     /**
      * Affiche les informations de la route trouvée et gère le retour (String ou ModelView)
@@ -198,18 +187,19 @@ public class FrontServlet extends HttpServlet {
     }
     
     private void showFrameworkPage(HttpServletRequest request, HttpServletResponse response, 
-                                 String requestedPath, List<RouteMapping> routeMappings) 
+                                 String requestedPath, Map<String, RouteMapping> routeMap) 
             throws IOException {
         response.setContentType("text/plain; charset=UTF-8");
         PrintWriter out = response.getWriter();
 
         out.println("Route non trouvée");
         out.println("URL demandée: " + requestedPath);
-        out.println("Routes disponibles: " + routeMappings.size());
-        if (routeMappings.isEmpty()) {
+        out.println("Routes disponibles: " + routeMap.size());
+        if (routeMap.isEmpty()) {
             out.println("(aucune)");
         } else {
-            for (RouteMapping rm : routeMappings) {
+            for (Map.Entry<String, RouteMapping> entry : routeMap.entrySet()) {
+                RouteMapping rm = entry.getValue();
                 // Minimal: fullUrl -> class#method
                 out.println(rm.getFullUrl() + " -> " + rm.getClassName() + "#" + rm.getMethodName());
             }
