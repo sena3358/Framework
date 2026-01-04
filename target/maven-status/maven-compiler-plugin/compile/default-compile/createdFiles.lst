@@ -1,13 +1,11 @@
-com\monframework\annotation\PUT.class
-com\monframework\annotation\RequestParam.class
-com\monframework\core\ModelView.class
 com\monframework\annotation\AnnotationUtils.class
 com\monframework\annotation\POST.class
 com\monframework\mapper\UrlPattern.class
 com\monframework\annotation\HandleUrl.class
 com\monframework\finder\ClassFinder.class
+com\monframework\annotation\RequestParam.class
+com\monframework\core\ModelView.class
 com\monframework\mapper\RouteMapping.class
 com\monframework\annotation\GET.class
 com\monframework\annotation\MyController.class
 com\monframework\core\FrontServlet.class
-com\monframework\annotation\DELETE.class
