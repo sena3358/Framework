@@ -10,6 +10,8 @@ import java.util.stream.Collectors;
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.util.HashMap;
+import java.util.Map;
 
 import com.monframework.annotation.MyController;
 import com.monframework.annotation.HandleUrl;
@@ -204,5 +206,20 @@ public class RouteMapping {
         }
 
         return result;
+    }
+
+    /**
+     * Convertit une liste de RouteMapping en Map avec l'URL complète comme clé.
+     * Facilite la recherche rapide des routes par URL.
+     * 
+     * @param routeMappings Liste des routes à convertir
+     * @return Map avec URL -> RouteMapping
+     */
+    public static Map<String, RouteMapping> toMap(List<RouteMapping> routeMappings) {
+        Map<String, RouteMapping> map = new HashMap<>();
+        for (RouteMapping route : routeMappings) {
+            map.put(route.getFullUrl(), route);
+        }
+        return map;
     }
 }
