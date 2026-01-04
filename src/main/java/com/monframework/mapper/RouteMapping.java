@@ -18,6 +18,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import com.monframework.annotation.MyController;
 import com.monframework.annotation.HandleUrl;
 import com.monframework.annotation.RequestParam;
+import com.monframework.annotation.GET;
+import com.monframework.annotation.POST;
 import com.monframework.core.ModelView;
 
 public class RouteMapping {
@@ -26,12 +28,14 @@ public class RouteMapping {
     private final String urlValue;
     private final String methodName;
     private final UrlPattern urlPattern;
+    private final String httpMethod; // GET, POST, PUT, DELETE, etc.
 
-    public RouteMapping(String className, String controllerValue, String urlValue, String methodName) {
+    public RouteMapping(String className, String controllerValue, String urlValue, String methodName, String httpMethod) {
         this.className = className;
         this.controllerValue = controllerValue;
         this.urlValue = urlValue;
         this.methodName = methodName;
+        this.httpMethod = httpMethod;
         this.urlPattern = new UrlPattern(getFullUrl());
     }
 
@@ -39,6 +43,26 @@ public class RouteMapping {
     public String getControllerValue() { return controllerValue; }
     public String getUrlValue() { return urlValue; }
     public String getMethodName() { return methodName; }
+    public String getHttpMethod() { return httpMethod; }
+    
+    /**
+     * Vérifie si cette route correspond à la méthode HTTP spécifiée.
+     */
+    public boolean matchesHttpMethod(String requestMethod) {
+        // Si aucune méthode HTTP n'est spécifiée, accepter toutes les méthodes
+        if (httpMethod == null || httpMethod.isEmpty()) {
+            return true;
+        }
+        return httpMethod.equalsIgnoreCase(requestMethod);
+    }
+    
+    /**
+     * Retourne une clé unique pour cette route (URL + méthode HTTP).
+     */
+    public String getRouteKey() {
+        String method = (httpMethod != null && !httpMethod.isEmpty()) ? httpMethod : "ALL";
+        return method + ":" + getFullUrl();
+    }
     
     /**
      * Retourne l'URL complète en combinant controllerValue et urlValue
@@ -90,6 +114,7 @@ public class RouteMapping {
                 ", controllerValue='" + controllerValue + '\'' +
                 ", urlValue='" + urlValue + '\'' +
                 ", methodName='" + methodName + '\'' +
+                ", httpMethod='" + httpMethod + '\'' +
                 ", fullUrl='" + getFullUrl() + '\'' +
                 '}';
     }
@@ -299,7 +324,15 @@ public class RouteMapping {
                             HandleUrl urlAnn = m.getAnnotation(HandleUrl.class);
                             if (urlAnn != null) {
                                 String urlValue = urlAnn.value();
-                                RouteMapping mapping = new RouteMapping(clazz.getName(), controllerValue, urlValue, m.getName());
+                                
+                                // Détecter la méthode HTTP via les annotations
+                                String httpMethod = "GET"; // Par défaut
+                                if (m.isAnnotationPresent(GET.class)) {
+                                    httpMethod = "GET";
+                                } else if (m.isAnnotationPresent(POST.class)) {
+                                    httpMethod = "POST";
+                                }
+                                RouteMapping mapping = new RouteMapping(clazz.getName(), controllerValue, urlValue, m.getName(), httpMethod);
                                 result.add(mapping);
                                 System.out.println("[DEBUG RouteMapping] Added route: " + mapping);
                             }
@@ -332,7 +365,7 @@ public class RouteMapping {
     public static Map<String, RouteMapping> toMap(List<RouteMapping> routeMappings) {
         Map<String, RouteMapping> map = new HashMap<>();
         for (RouteMapping route : routeMappings) {
-            map.put(route.getFullUrl(), route);
+            map.put(route.getRouteKey(), route);
         }
         return map;
     }
