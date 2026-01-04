@@ -185,6 +185,27 @@ public class RouteMapping {
         List<String> urlParamNames = urlPattern.getParamNames();
         
         for (int i = 0; i < paramTypes.length; i++) {
+            // Cas spécial: si le paramètre est de type Map, copier tous les paramètres dedans
+            if (paramTypes[i] == Map.class) {
+                Map<String, Object> dataMap = new HashMap<>();
+                
+                // Copier tous les paramètres d'URL
+                dataMap.putAll(urlParams);
+                
+                // Copier tous les paramètres HTTP de la requête
+                if (request != null) {
+                    java.util.Enumeration<String> paramNames = request.getParameterNames();
+                    while (paramNames.hasMoreElements()) {
+                        String paramName = paramNames.nextElement();
+                        dataMap.put(paramName, request.getParameter(paramName));
+                    }
+                }
+                
+                args[i] = dataMap;
+                continue; // Passer au paramètre suivant
+            }
+            
+            // Traitement normal pour les autres types
             String paramName = parameters[i].getName(); // nom par défaut de la variable
             String paramValue = null;
             
