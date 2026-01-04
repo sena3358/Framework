@@ -2,6 +2,7 @@ com\monframework\annotation\AnnotationUtils.class
 com\monframework\mapper\UrlPattern.class
 com\monframework\annotation\HandleUrl.class
 com\monframework\finder\ClassFinder.class
+com\monframework\annotation\RequestParam.class
 com\monframework\core\ModelView.class
 com\monframework\mapper\RouteMapping.class
 com\monframework\annotation\MyController.class
