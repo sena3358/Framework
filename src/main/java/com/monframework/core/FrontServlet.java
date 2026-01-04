@@ -10,6 +10,7 @@ import jakarta.servlet.ServletContext;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.nio.file.Path;
@@ -110,12 +111,25 @@ public class FrontServlet extends HttpServlet {
             routeMap = Collections.emptyMap();
         }
         
-        // Chercher une route correspondante (recherche directe dans le Map)
+        // Chercher une route correspondante
+        // D'abord essayer un match exact
         RouteMapping matchedRoute = routeMap.get(resourcePath);
+        Map<String, String> urlParams = new HashMap<>();
+        
+        // Si pas de match exact, chercher un pattern dynamique
+        if (matchedRoute == null) {
+            for (RouteMapping route : routeMap.values()) {
+                if (route.matches(resourcePath)) {
+                    matchedRoute = route;
+                    urlParams = route.extractParams(resourcePath);
+                    break;
+                }
+            }
+        }
         
         if (matchedRoute != null) {
             // Route trouvée ! Afficher les informations
-            showMatchedRoute(request, response, resourcePath, matchedRoute);
+            showMatchedRoute(request, response, resourcePath, matchedRoute, urlParams);
         } else {
             // Aucune route trouvée, afficher la page par défaut
             showFrameworkPage(request, response, resourcePath, routeMap);
@@ -128,11 +142,11 @@ public class FrontServlet extends HttpServlet {
      * Affiche les informations de la route trouvée et gère le retour (String ou ModelView)
      */
     private void showMatchedRoute(HttpServletRequest request, HttpServletResponse response, 
-                                   String requestedPath, RouteMapping route) 
+                                   String requestedPath, RouteMapping route, Map<String, String> urlParams) 
             throws IOException, ServletException {
         try {
-            // Appeler la méthode du contrôleur
-            Object result = route.callMethod();
+            // Appeler la méthode du contrôleur avec les paramètres extraits
+            Object result = route.callMethod(urlParams);
 
             // Tester le type de retour
             if (result instanceof String) {

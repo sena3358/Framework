@@ -22,12 +22,14 @@ public class RouteMapping {
     private final String controllerValue;
     private final String urlValue;
     private final String methodName;
+    private final UrlPattern urlPattern;
 
     public RouteMapping(String className, String controllerValue, String urlValue, String methodName) {
         this.className = className;
         this.controllerValue = controllerValue;
         this.urlValue = urlValue;
         this.methodName = methodName;
+        this.urlPattern = new UrlPattern(getFullUrl());
     }
 
     public String getClassName() { return className; }
@@ -53,6 +55,31 @@ public class RouteMapping {
         return controller + url;
     }
 
+    /**
+     * Vérifie si une URL correspond au pattern de cette route.
+     */
+    public boolean matches(String url) {
+        return urlPattern.matches(url);
+    }
+
+    /**
+     * Extrait les paramètres depuis une URL.
+     */
+    public Map<String, String> extractParams(String url) {
+        return urlPattern.extractParams(url);
+    }
+
+    /**
+     * Vérifie si cette route a des paramètres dynamiques.
+     */
+    public boolean isDynamic() {
+        return urlPattern.isDynamic();
+    }
+
+    public UrlPattern getUrlPattern() {
+        return urlPattern;
+    }
+
     @Override
     public String toString() {
         return "RouteMapping{" +
@@ -68,10 +95,11 @@ public class RouteMapping {
      * Appelle la méthode du contrôleur en utilisant la réflexion.
      * La méthode peut retourner un String ou un ModelView.
      * 
+     * @param urlParams Paramètres extraits de l'URL
      * @return Le résultat Object retourné par la méthode (String ou ModelView)
      * @throws Exception Si l'invocation échoue
      */
-    public Object callMethod() throws Exception {
+    public Object callMethod(Map<String, String> urlParams) throws Exception {
         // Charger la classe du contrôleur
         ClassLoader loader = Thread.currentThread().getContextClassLoader();
         Class<?> clazz = Class.forName(className, true, loader);
@@ -80,7 +108,7 @@ public class RouteMapping {
         Object controllerInstance = clazz.getDeclaredConstructor().newInstance();
 
         // Trouver la méthode à invoquer
-        Method method = clazz.getDeclaredMethod(methodName);
+        Method method = findMethod(clazz, methodName, urlParams);
 
         // Vérifier que la méthode retourne un String ou un ModelView
         Class<?> returnType = method.getReturnType();
@@ -89,11 +117,82 @@ public class RouteMapping {
                               " doit retourner un String ou un ModelView (retourne: " + returnType.getName() + ")");
         }
 
-        // Invoquer la méthode
-        Object result = method.invoke(controllerInstance);
+        // Préparer les arguments pour l'invocation
+        Object[] args = prepareMethodArgs(method, urlParams);
+
+        // Invoquer la méthode avec les arguments
+        Object result = method.invoke(controllerInstance, args);
 
         // Retourner le résultat (String ou ModelView)
         return result;
+    }
+
+    /**
+     * Trouve la méthode correspondante dans la classe.
+     */
+    private Method findMethod(Class<?> clazz, String methodName, Map<String, String> urlParams) throws NoSuchMethodException {
+        // Chercher toutes les méthodes avec ce nom
+        for (Method m : clazz.getDeclaredMethods()) {
+            if (m.getName().equals(methodName)) {
+                // Vérifier si le nombre de paramètres correspond
+                int paramCount = m.getParameterCount();
+                if (paramCount == urlParams.size()) {
+                    return m;
+                }
+                // Si pas de paramètres d'URL et la méthode n'a pas de paramètres
+                if (urlParams.isEmpty() && paramCount == 0) {
+                    return m;
+                }
+            }
+        }
+        
+        // Si aucune méthode trouvée, essayer sans paramètres
+        return clazz.getDeclaredMethod(methodName);
+    }
+
+    /**
+     * Prépare les arguments pour l'invocation de la méthode.
+     * Convertit les paramètres String en types appropriés.
+     */
+    private Object[] prepareMethodArgs(Method method, Map<String, String> urlParams) {
+        Class<?>[] paramTypes = method.getParameterTypes();
+        Object[] args = new Object[paramTypes.length];
+        
+        List<String> paramNames = urlPattern.getParamNames();
+        
+        for (int i = 0; i < paramTypes.length && i < paramNames.size(); i++) {
+            String paramName = paramNames.get(i);
+            String paramValue = urlParams.get(paramName);
+            
+            // Convertir la valeur String vers le type approprié
+            args[i] = convertParameter(paramValue, paramTypes[i]);
+        }
+        
+        return args;
+    }
+
+    /**
+     * Convertit un paramètre String vers le type demandé.
+     */
+    private Object convertParameter(String value, Class<?> targetType) {
+        if (value == null) {
+            return null;
+        }
+        
+        if (targetType == String.class) {
+            return value;
+        } else if (targetType == int.class || targetType == Integer.class) {
+            return Integer.parseInt(value);
+        } else if (targetType == long.class || targetType == Long.class) {
+            return Long.parseLong(value);
+        } else if (targetType == double.class || targetType == Double.class) {
+            return Double.parseDouble(value);
+        } else if (targetType == boolean.class || targetType == Boolean.class) {
+            return Boolean.parseBoolean(value);
+        }
+        
+        // Par défaut, retourner la valeur String
+        return value;
     }
 
     /**
