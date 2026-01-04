@@ -13,6 +13,7 @@ import java.net.URLClassLoader;
 
 import com.monframework.annotation.MyController;
 import com.monframework.annotation.HandleUrl;
+import com.monframework.core.ModelView;
 
 public class RouteMapping {
     private final String className;
@@ -63,12 +64,12 @@ public class RouteMapping {
 
     /**
      * Appelle la méthode du contrôleur en utilisant la réflexion.
-     * La méthode doit retourner un String, sinon une exception est levée.
+     * La méthode peut retourner un String ou un ModelView.
      * 
-     * @return Le résultat String retourné par la méthode
-     * @throws Exception Si la méthode ne retourne pas un String ou si l'invocation échoue
+     * @return Le résultat Object retourné par la méthode (String ou ModelView)
+     * @throws Exception Si l'invocation échoue
      */
-    public String callMethod() throws Exception {
+    public Object callMethod() throws Exception {
         // Charger la classe du contrôleur
         ClassLoader loader = Thread.currentThread().getContextClassLoader();
         Class<?> clazz = Class.forName(className, true, loader);
@@ -79,17 +80,18 @@ public class RouteMapping {
         // Trouver la méthode à invoquer
         Method method = clazz.getDeclaredMethod(methodName);
 
-        // Vérifier que la méthode retourne un String
-        if (!method.getReturnType().equals(String.class)) {
+        // Vérifier que la méthode retourne un String ou un ModelView
+        Class<?> returnType = method.getReturnType();
+        if (!returnType.equals(String.class) && !returnType.equals(ModelView.class)) {
             throw new Exception("La méthode " + methodName + " de la classe " + className + 
-                              " ne retourne pas un String (retourne: " + method.getReturnType().getName() + ")");
+                              " doit retourner un String ou un ModelView (retourne: " + returnType.getName() + ")");
         }
 
         // Invoquer la méthode
         Object result = method.invoke(controllerInstance);
 
-        // Retourner le résultat (déjà vérifié comme String)
-        return (String) result;
+        // Retourner le résultat (String ou ModelView)
+        return result;
     }
 
     /**

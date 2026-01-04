@@ -15,6 +15,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 import com.monframework.mapper.RouteMapping;
+import com.monframework.core.ModelView;
 
 
 @WebServlet(name = "FrontServlet", urlPatterns = {"/"}, loadOnStartup = 1)
@@ -134,36 +135,47 @@ public class FrontServlet extends HttpServlet {
     }
     
     /**
-     * Affiche les informations de la route trouvée
+     * Affiche les informations de la route trouvée et gère le retour (String ou ModelView)
      */
     private void showMatchedRoute(HttpServletRequest request, HttpServletResponse response, 
                                    String requestedPath, RouteMapping route) 
-            throws IOException {
-        response.setContentType("text/plain; charset=UTF-8");
-        PrintWriter out = response.getWriter();
-
-        // Minimal output: requested path, controller class and method, annotation values
-        // out.println("Route trouvée");
-        // out.println("URL: " + requestedPath);
-        // out.println("Classe: " + route.getClassName());
-        // out.println("Méthode: " + route.getMethodName() + "()");
-        // out.println("@ControleurAnnotation: " + route.getControllerValue());
-        // out.println("@HandleURL: " + route.getUrlValue());
+            throws IOException, ServletException {
         try {
             // Appeler la méthode du contrôleur
-            String result = route.callMethod();
+            Object result = route.callMethod();
 
-            // Afficher le résultat
-            out.println("Route trouvée et méthode appelée avec succès");
-            out.println("URL: " + requestedPath);
-            out.println("Classe: " + route.getClassName());
-            out.println("Méthode: " + route.getMethodName() + "()");
-            out.println();
-            out.println("Résultat:");
-            out.println(result);
+            // Tester le type de retour
+            if (result instanceof String) {
+                // Si c'est un String, afficher directement
+                response.setContentType("text/html; charset=UTF-8");
+                PrintWriter out = response.getWriter();
+                out.println((String) result);
+                
+            } else if (result instanceof ModelView) {
+                // Si c'est un ModelView, faire un forward vers la JSP
+                ModelView mv = (ModelView) result;
+                String viewPath = mv.getView();
+                
+                if (viewPath != null && !viewPath.isEmpty()) {
+                    RequestDispatcher dispatcher = request.getRequestDispatcher(viewPath);
+                    dispatcher.forward(request, response);
+                } else {
+                    response.setContentType("text/plain; charset=UTF-8");
+                    PrintWriter out = response.getWriter();
+                    out.println("Erreur: ModelView sans vue définie");
+                }
+            } else {
+                // Type de retour non supporté
+                response.setContentType("text/plain; charset=UTF-8");
+                PrintWriter out = response.getWriter();
+                out.println("Erreur: Type de retour non supporté");
+                out.println("Type: " + (result != null ? result.getClass().getName() : "null"));
+            }
 
         } catch (Exception e) {
             // En cas d'erreur lors de l'appel de la méthode
+            response.setContentType("text/plain; charset=UTF-8");
+            PrintWriter out = response.getWriter();
             out.println("Erreur lors de l'appel de la méthode");
             out.println("URL: " + requestedPath);
             out.println("Classe: " + route.getClassName());
