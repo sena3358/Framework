@@ -17,6 +17,7 @@ import jakarta.servlet.http.HttpServletRequest;
 
 import com.monframework.annotation.MyController;
 import com.monframework.annotation.HandleUrl;
+import com.monframework.annotation.RequestParam;
 import com.monframework.core.ModelView;
 
 public class RouteMapping {
@@ -149,6 +150,7 @@ public class RouteMapping {
      * Prépare les arguments pour l'invocation de la méthode.
      * Convertit les paramètres String en types appropriés.
      * Combine les paramètres d'URL et les paramètres HTTP.
+     * Supporte l'annotation @RequestParam pour mapper explicitement les paramètres.
      */
     private Object[] prepareMethodArgs(Method method, Map<String, String> urlParams, HttpServletRequest request) {
         Class<?>[] paramTypes = method.getParameterTypes();
@@ -158,8 +160,15 @@ public class RouteMapping {
         List<String> urlParamNames = urlPattern.getParamNames();
         
         for (int i = 0; i < paramTypes.length; i++) {
-            String paramName = parameters[i].getName(); // nom du paramètre (var2, id, etc.)
+            String paramName = parameters[i].getName(); // nom par défaut de la variable
             String paramValue = null;
+            
+            // Vérifier si le paramètre a l'annotation @RequestParam
+            RequestParam requestParamAnnotation = parameters[i].getAnnotation(RequestParam.class);
+            if (requestParamAnnotation != null && !requestParamAnnotation.value().isEmpty()) {
+                // Si @RequestParam est présent avec une valeur, utiliser cette valeur
+                paramName = requestParamAnnotation.value();
+            }
             
             // 1. Vérifier d'abord si c'est un paramètre d'URL (priorité aux paramètres d'URL)
             if (urlParamNames.contains(paramName)) {
