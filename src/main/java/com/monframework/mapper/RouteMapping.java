@@ -13,6 +13,8 @@ import java.net.URLClassLoader;
 import java.util.HashMap;
 import java.util.Map;
 
+import jakarta.servlet.http.HttpServletRequest;
+
 import com.monframework.annotation.MyController;
 import com.monframework.annotation.HandleUrl;
 import com.monframework.core.ModelView;
@@ -96,10 +98,11 @@ public class RouteMapping {
      * La méthode peut retourner un String ou un ModelView.
      * 
      * @param urlParams Paramètres extraits de l'URL
+     * @param request La requête HTTP pour extraire les paramètres additionnels
      * @return Le résultat Object retourné par la méthode (String ou ModelView)
      * @throws Exception Si l'invocation échoue
      */
-    public Object callMethod(Map<String, String> urlParams) throws Exception {
+    public Object callMethod(Map<String, String> urlParams, HttpServletRequest request) throws Exception {
         // Charger la classe du contrôleur
         ClassLoader loader = Thread.currentThread().getContextClassLoader();
         Class<?> clazz = Class.forName(className, true, loader);
@@ -108,7 +111,7 @@ public class RouteMapping {
         Object controllerInstance = clazz.getDeclaredConstructor().newInstance();
 
         // Trouver la méthode à invoquer
-        Method method = findMethod(clazz, methodName, urlParams);
+        Method method = findMethod(clazz, methodName, urlParams, request);
 
         // Vérifier que la méthode retourne un String ou un ModelView
         Class<?> returnType = method.getReturnType();
@@ -118,7 +121,7 @@ public class RouteMapping {
         }
 
         // Préparer les arguments pour l'invocation
-        Object[] args = prepareMethodArgs(method, urlParams);
+        Object[] args = prepareMethodArgs(method, urlParams, request);
 
         // Invoquer la méthode avec les arguments
         Object result = method.invoke(controllerInstance, args);
@@ -130,19 +133,11 @@ public class RouteMapping {
     /**
      * Trouve la méthode correspondante dans la classe.
      */
-    private Method findMethod(Class<?> clazz, String methodName, Map<String, String> urlParams) throws NoSuchMethodException {
+    private Method findMethod(Class<?> clazz, String methodName, Map<String, String> urlParams, HttpServletRequest request) throws NoSuchMethodException {
         // Chercher toutes les méthodes avec ce nom
         for (Method m : clazz.getDeclaredMethods()) {
             if (m.getName().equals(methodName)) {
-                // Vérifier si le nombre de paramètres correspond
-                int paramCount = m.getParameterCount();
-                if (paramCount == urlParams.size()) {
-                    return m;
-                }
-                // Si pas de paramètres d'URL et la méthode n'a pas de paramètres
-                if (urlParams.isEmpty() && paramCount == 0) {
-                    return m;
-                }
+                return m;
             }
         }
         
@@ -153,16 +148,27 @@ public class RouteMapping {
     /**
      * Prépare les arguments pour l'invocation de la méthode.
      * Convertit les paramètres String en types appropriés.
+     * Combine les paramètres d'URL et les paramètres HTTP.
      */
-    private Object[] prepareMethodArgs(Method method, Map<String, String> urlParams) {
+    private Object[] prepareMethodArgs(Method method, Map<String, String> urlParams, HttpServletRequest request) {
         Class<?>[] paramTypes = method.getParameterTypes();
+        java.lang.reflect.Parameter[] parameters = method.getParameters();
         Object[] args = new Object[paramTypes.length];
         
-        List<String> paramNames = urlPattern.getParamNames();
+        List<String> urlParamNames = urlPattern.getParamNames();
         
-        for (int i = 0; i < paramTypes.length && i < paramNames.size(); i++) {
-            String paramName = paramNames.get(i);
-            String paramValue = urlParams.get(paramName);
+        for (int i = 0; i < paramTypes.length; i++) {
+            String paramName = parameters[i].getName(); // nom du paramètre (var2, id, etc.)
+            String paramValue = null;
+            
+            // 1. Vérifier d'abord si c'est un paramètre d'URL (priorité aux paramètres d'URL)
+            if (urlParamNames.contains(paramName)) {
+                paramValue = urlParams.get(paramName);
+            }
+            // 2. Sinon, vérifier dans les paramètres HTTP (request.getParameter)
+            else if (request != null) {
+                paramValue = request.getParameter(paramName);
+            }
             
             // Convertir la valeur String vers le type approprié
             args[i] = convertParameter(paramValue, paramTypes[i]);
