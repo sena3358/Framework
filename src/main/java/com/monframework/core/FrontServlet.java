@@ -145,8 +145,8 @@ public class FrontServlet extends HttpServlet {
                                    String requestedPath, RouteMapping route, Map<String, String> urlParams) 
             throws IOException, ServletException {
         try {
-            // Appeler la méthode du contrôleur avec les paramètres extraits
-            Object result = route.callMethod(urlParams);
+            // Appeler la méthode du contrôleur avec les paramètres extraits et la requête HTTP
+            Object result = route.callMethod(urlParams, request);
 
             // Tester le type de retour
             if (result instanceof String) {
