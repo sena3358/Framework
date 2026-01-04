@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -157,6 +158,12 @@ public class FrontServlet extends HttpServlet {
                 String viewPath = mv.getView();
                 
                 if (viewPath != null && !viewPath.isEmpty()) {
+                    // Transférer toutes les données du ModelView vers le request
+                    for (Map.Entry<String, Object> entry : mv.getData().entrySet()) {
+                        request.setAttribute(entry.getKey(), entry.getValue());
+                    }
+                    
+                    // Forward vers la JSP
                     RequestDispatcher dispatcher = request.getRequestDispatcher(viewPath);
                     dispatcher.forward(request, response);
                 } else {
