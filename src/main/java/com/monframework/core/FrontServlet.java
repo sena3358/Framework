@@ -153,7 +153,18 @@ public class FrontServlet extends HttpServlet {
             // Appeler la méthode du contrôleur avec les paramètres extraits et la requête HTTP
             Object result = route.callMethod(urlParams, request);
 
-            // Tester le type de retour
+            // Si la méthode est annotée @Json, retourner du JSON
+            if (route.isJson()) {
+                response.setContentType("application/json; charset=UTF-8");
+                PrintWriter out = response.getWriter();
+                
+                // Convertir le résultat en format JSON standardisé
+                String jsonResponse = JsonConverter.toApiResponse(result, "success", 200);
+                out.println(jsonResponse);
+                return;
+            }
+            
+            // Tester le type de retour (pour les vues classiques)
             if (result instanceof String) {
                 // Si c'est un String, afficher directement
                 response.setContentType("text/html; charset=UTF-8");
@@ -189,15 +200,29 @@ public class FrontServlet extends HttpServlet {
 
         } catch (Exception e) {
             // En cas d'erreur lors de l'appel de la méthode
-            response.setContentType("text/plain; charset=UTF-8");
-            PrintWriter out = response.getWriter();
-            out.println("Erreur lors de l'appel de la méthode");
-            out.println("URL: " + requestedPath);
-            out.println("Classe: " + route.getClassName());
-            out.println("Méthode: " + route.getMethodName() + "()");
-            out.println();
-            out.println("Exception: " + e.getClass().getName());
-            out.println("Message: " + e.getMessage());
+            
+            // Si c'est une API JSON, retourner l'erreur en JSON
+            if (route.isJson()) {
+                response.setContentType("application/json; charset=UTF-8");
+                PrintWriter out = response.getWriter();
+                
+                // Créer un objet d'erreur
+                String errorMessage = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+                String jsonError = "{\"status\":\"error\",\"code\":500,\"message\":\"" + 
+                                  errorMessage.replace("\"", "\\\"") + "\"}";
+                out.println(jsonError);
+            } else {
+                // Affichage classique pour les vues
+                response.setContentType("text/plain; charset=UTF-8");
+                PrintWriter out = response.getWriter();
+                out.println("Erreur lors de l'appel de la méthode");
+                out.println("URL: " + requestedPath);
+                out.println("Classe: " + route.getClassName());
+                out.println("Méthode: " + route.getMethodName() + "()");
+                out.println();
+                out.println("Exception: " + e.getClass().getName());
+                out.println("Message: " + e.getMessage());
+            }
 
             // Log l'erreur complète sur la console serveur
             System.err.println("Erreur lors de l'appel de la méthode " + route.getMethodName() + ":");

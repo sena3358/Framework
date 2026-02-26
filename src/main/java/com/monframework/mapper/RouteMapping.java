@@ -23,6 +23,7 @@ import com.monframework.annotation.HandleUrl;
 import com.monframework.annotation.RequestParam;
 import com.monframework.annotation.GET;
 import com.monframework.annotation.POST;
+import com.monframework.annotation.Json;
 import com.monframework.core.ModelView;
 
 public class RouteMapping {
@@ -32,13 +33,15 @@ public class RouteMapping {
     private final String methodName;
     private final UrlPattern urlPattern;
     private final String httpMethod; // GET, POST, PUT, DELETE, etc.
+    private final boolean isJson; // true si la méthode retourne du JSON
 
-    public RouteMapping(String className, String controllerValue, String urlValue, String methodName, String httpMethod) {
+    public RouteMapping(String className, String controllerValue, String urlValue, String methodName, String httpMethod, boolean isJson) {
         this.className = className;
         this.controllerValue = controllerValue;
         this.urlValue = urlValue;
         this.methodName = methodName;
         this.httpMethod = httpMethod;
+        this.isJson = isJson;
         this.urlPattern = new UrlPattern(getFullUrl());
     }
 
@@ -47,6 +50,7 @@ public class RouteMapping {
     public String getUrlValue() { return urlValue; }
     public String getMethodName() { return methodName; }
     public String getHttpMethod() { return httpMethod; }
+    public boolean isJson() { return isJson; }
     
     /**
      * Vérifie si cette route correspond à la méthode HTTP spécifiée.
@@ -118,6 +122,7 @@ public class RouteMapping {
                 ", urlValue='" + urlValue + '\'' +
                 ", methodName='" + methodName + '\'' +
                 ", httpMethod='" + httpMethod + '\'' +
+                ", isJson=" + isJson +
                 ", fullUrl='" + getFullUrl() + '\'' +
                 '}';
     }
@@ -534,7 +539,11 @@ public class RouteMapping {
                                 } else if (m.isAnnotationPresent(POST.class)) {
                                     httpMethod = "POST";
                                 }
-                                RouteMapping mapping = new RouteMapping(clazz.getName(), controllerValue, urlValue, m.getName(), httpMethod);
+                                
+                                // Détecter si c'est une API JSON
+                                boolean isJson = m.isAnnotationPresent(Json.class);
+                                
+                                RouteMapping mapping = new RouteMapping(clazz.getName(), controllerValue, urlValue, m.getName(), httpMethod, isJson);
                                 result.add(mapping);
                                 System.out.println("[DEBUG RouteMapping] Added route: " + mapping);
                             }
