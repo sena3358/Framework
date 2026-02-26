@@ -1,6 +1,8 @@
 package com.monframework.mapper;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Field;
+import java.lang.reflect.Array;
 import java.nio.file.Path;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -12,6 +14,7 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Enumeration;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -225,8 +228,20 @@ public class RouteMapping {
                 paramValue = request.getParameter(paramName);
             }
             
-            // Convertir la valeur String vers le type approprié
-            args[i] = convertParameter(paramValue, paramTypes[i]);
+            // Si c'est un type primitif/String, convertir directement
+            if (isPrimitiveOrString(paramTypes[i])) {
+                args[i] = convertParameter(paramValue, paramTypes[i]);
+            }
+            // Si c'est un tableau, gérer le mapping de tableau
+            else if (paramTypes[i].isArray()) {
+                Map<String, String[]> allParams = extractAllParameters(request, urlParams);
+                args[i] = mapToArray(paramTypes[i], allParams, paramName);
+            }
+            // Sinon, c'est un objet complexe - utiliser mapToObject
+            else {
+                Map<String, String[]> allParams = extractAllParameters(request, urlParams);
+                args[i] = mapToObject(paramTypes[i], allParams, paramName);
+            }
         }
         
         return args;
@@ -254,6 +269,172 @@ public class RouteMapping {
         
         // Par défaut, retourner la valeur String
         return value;
+    }
+
+    /**
+     * Vérifie si un type est primitif ou String
+     */
+    private boolean isPrimitiveOrString(Class<?> type) {
+        return type.isPrimitive() || 
+               type == String.class ||
+               type == Integer.class ||
+               type == Long.class ||
+               type == Double.class ||
+               type == Boolean.class ||
+               type == Float.class ||
+               type == Short.class ||
+               type == Byte.class ||
+               type == Character.class;
+    }
+
+    /**
+     * Extrait tous les paramètres de la requête et les combine avec les paramètres d'URL
+     */
+    private Map<String, String[]> extractAllParameters(HttpServletRequest request, Map<String, String> urlParams) {
+        Map<String, String[]> allParams = new HashMap<>();
+        
+        // Ajouter les paramètres d'URL
+        for (Map.Entry<String, String> entry : urlParams.entrySet()) {
+            allParams.put(entry.getKey(), new String[]{entry.getValue()});
+        }
+        
+        // Ajouter tous les paramètres HTTP
+        if (request != null) {
+            Enumeration<String> paramNames = request.getParameterNames();
+            while (paramNames.hasMoreElements()) {
+                String paramName = paramNames.nextElement();
+                allParams.put(paramName, request.getParameterValues(paramName));
+            }
+        }
+        
+        return allParams;
+    }
+
+    /**
+     * Mappe les paramètres vers un objet complexe
+     * Supporte les objets imbriqués avec notation point (e.name, e.department.name)
+     * Supporte les tableaux avec notation crochet (e.departments[0].name)
+     */
+    private <T> T mapToObject(Class<T> targetType, Map<String, String[]> parameterMap, String prefix) {
+        try {
+            // Créer une nouvelle instance de l'objet
+            T obj = targetType.getDeclaredConstructor().newInstance();
+            
+            // Parcourir tous les champs de la classe
+            Field[] fields = targetType.getDeclaredFields();
+            for (Field field : fields) {
+                field.setAccessible(true);
+                
+                // Construire la clé du paramètre
+                String key = prefix.isEmpty() ? field.getName() : prefix + "." + field.getName();
+                
+                Class<?> fieldType = field.getType();
+                
+                // Cas 1: Type primitif ou String
+                if (isPrimitiveOrString(fieldType)) {
+                    String[] values = parameterMap.get(key);
+                    if (values != null && values.length > 0) {
+                        Object convertedValue = convertParameter(values[0], fieldType);
+                        field.set(obj, convertedValue);
+                    }
+                }
+                // Cas 2: Tableau
+                else if (fieldType.isArray()) {
+                    Object arrayValue = mapToArray(fieldType, parameterMap, key);
+                    if (arrayValue != null) {
+                        field.set(obj, arrayValue);
+                    }
+                }
+                // Cas 3: Objet imbriqué
+                else {
+                    // Vérifier s'il y a des paramètres avec ce préfixe
+                    boolean hasNestedParams = false;
+                    for (String paramKey : parameterMap.keySet()) {
+                        if (paramKey.startsWith(key + ".")) {
+                            hasNestedParams = true;
+                            break;
+                        }
+                    }
+                    
+                    if (hasNestedParams) {
+                        Object nestedObj = mapToObject(fieldType, parameterMap, key);
+                        field.set(obj, nestedObj);
+                    }
+                }
+            }
+            
+            return obj;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    /**
+     * Mappe les paramètres vers un tableau
+     * Supporte la notation tableau[0], tableau[1], etc.
+     */
+    private Object mapToArray(Class<?> arrayType, Map<String, String[]> parameterMap, String prefix) {
+        try {
+            Class<?> componentType = arrayType.getComponentType();
+            
+            // Trouver le nombre d'éléments dans le tableau
+            int maxIndex = -1;
+            for (String key : parameterMap.keySet()) {
+                if (key.startsWith(prefix + "[")) {
+                    int startIdx = key.indexOf('[', prefix.length()) + 1;
+                    int endIdx = key.indexOf(']', startIdx);
+                    if (endIdx > startIdx) {
+                        try {
+                            int index = Integer.parseInt(key.substring(startIdx, endIdx));
+                            maxIndex = Math.max(maxIndex, index);
+                        } catch (NumberFormatException e) {
+                            // Ignorer si ce n'est pas un nombre
+                        }
+                    }
+                }
+            }
+            
+            if (maxIndex == -1) {
+                // Pas de notation tableau - essayer avec un tableau de valeurs simples
+                String[] values = parameterMap.get(prefix);
+                if (values != null && values.length > 0) {
+                    Object array = Array.newInstance(componentType, values.length);
+                    for (int i = 0; i < values.length; i++) {
+                        if (isPrimitiveOrString(componentType)) {
+                            Array.set(array, i, convertParameter(values[i], componentType));
+                        }
+                    }
+                    return array;
+                }
+                return null;
+            }
+            
+            // Créer le tableau avec la taille appropriée
+            Object array = Array.newInstance(componentType, maxIndex + 1);
+            
+            // Remplir le tableau
+            for (int i = 0; i <= maxIndex; i++) {
+                String elemPrefix = prefix + "[" + i + "]";
+                
+                if (isPrimitiveOrString(componentType)) {
+                    // Type primitif - chercher la valeur directe
+                    String[] values = parameterMap.get(elemPrefix);
+                    if (values != null && values.length > 0) {
+                        Array.set(array, i, convertParameter(values[0], componentType));
+                    }
+                } else {
+                    // Objet complexe - mapper récursivement
+                    Object element = mapToObject(componentType, parameterMap, elemPrefix);
+                    Array.set(array, i, element);
+                }
+            }
+            
+            return array;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 
     /**
