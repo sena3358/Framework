@@ -3,6 +3,8 @@ package com.monframework.mapper;
 import java.lang.reflect.Method;
 import java.lang.reflect.Field;
 import java.lang.reflect.Array;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
 import java.nio.file.Path;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -10,13 +12,17 @@ import java.util.List;
 import java.util.stream.Stream;
 import java.util.stream.Collectors;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Enumeration;
+import java.util.Collection;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.Part;
+import jakarta.servlet.ServletException;
 
 import com.monframework.annotation.MyController;
 import com.monframework.annotation.HandleUrl;
@@ -193,6 +199,12 @@ public class RouteMapping {
         List<String> urlParamNames = urlPattern.getParamNames();
         
         for (int i = 0; i < paramTypes.length; i++) {
+            // Cas spécial: si le paramètre est de type Map<String, byte[]>, extraire les fichiers uploadés
+            if (paramTypes[i] == Map.class && isMapOfBytes(parameters[i])) {
+                args[i] = extractUploadedFiles(request);
+                continue; // Passer au paramètre suivant
+            }
+            
             // Cas spécial: si le paramètre est de type Map, copier tous les paramètres dedans
             if (paramTypes[i] == Map.class) {
                 Map<String, Object> dataMap = new HashMap<>();
@@ -274,6 +286,68 @@ public class RouteMapping {
         
         // Par défaut, retourner la valeur String
         return value;
+    }
+
+    /**
+     * Vérifie si un paramètre est de type Map<String, byte[]>
+     */
+    private boolean isMapOfBytes(java.lang.reflect.Parameter parameter) {
+        Type genericType = parameter.getParameterizedType();
+        if (genericType instanceof ParameterizedType) {
+            ParameterizedType paramType = (ParameterizedType) genericType;
+            Type[] typeArgs = paramType.getActualTypeArguments();
+            
+            // Vérifier si c'est Map<String, byte[]>
+            if (typeArgs.length == 2) {
+                Type valueType = typeArgs[1];
+                // Vérifier si le deuxième type est byte[]
+                if (valueType instanceof Class) {
+                    Class<?> valueClass = (Class<?>) valueType;
+                    return valueClass.isArray() && valueClass.getComponentType() == byte.class;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Extrait les fichiers uploadés depuis la requête multipart
+     */
+    private Map<String, byte[]> extractUploadedFiles(HttpServletRequest request) {
+        Map<String, byte[]> filesMap = new HashMap<>();
+        
+        if (request == null) {
+            return filesMap;
+        }
+        
+        try {
+            // Récupérer toutes les parties du multipart/form-data
+            Collection<Part> parts = request.getParts();
+            
+            for (Part part : parts) {
+                // Vérifier si c'est un fichier (a un nom de fichier)
+                String fileName = part.getSubmittedFileName();
+                if (fileName != null && !fileName.isEmpty()) {
+                    // Lire les bytes du fichier
+                    InputStream inputStream = part.getInputStream();
+                    byte[] fileBytes = inputStream.readAllBytes();
+                    inputStream.close();
+                    
+                    // Utiliser une clé composite "fieldName:originalFileName" pour préserver le nom original
+                    String fieldName = part.getName();
+                    String compositeKey = fieldName + ":" + fileName;
+                    filesMap.put(compositeKey, fileBytes);
+                    
+                    System.out.println("[DEBUG RouteMapping] Fichier uploadé: " + fieldName + 
+                                     " (nom original: " + fileName + ", taille: " + fileBytes.length + " bytes, clé: " + compositeKey + ")");
+                }
+            }
+        } catch (ServletException | IOException e) {
+            System.err.println("Erreur lors de l'extraction des fichiers: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return filesMap;
     }
 
     /**
