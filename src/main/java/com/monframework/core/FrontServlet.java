@@ -3,6 +3,7 @@ package com.monframework.core;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.annotation.WebServlet;
+import jakarta.servlet.annotation.MultipartConfig;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -21,6 +22,7 @@ import com.monframework.core.ModelView;
 
 
 @WebServlet(name = "FrontServlet", urlPatterns = {"/"}, loadOnStartup = 1)
+@MultipartConfig(maxFileSize = 10485760, maxRequestSize = 20971520) // 10MB par fichier, 20MB total
 public class FrontServlet extends HttpServlet {
 
     @Override
