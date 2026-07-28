@@ -2,12 +2,15 @@ com\monframework\core\JsonConverter.class
 com\monframework\annotation\RequestParam.class
 com\monframework\core\ModelView.class
 com\monframework\annotation\AnnotationUtils.class
+com\monframework\core\SessionMap.class
 com\monframework\annotation\POST.class
 com\monframework\mapper\UrlPattern.class
 com\monframework\annotation\HandleUrl.class
 com\monframework\annotation\Json.class
 com\monframework\finder\ClassFinder.class
+com\monframework\mapper\ParameterResolver.class
 com\monframework\mapper\RouteMapping.class
 com\monframework\annotation\GET.class
 com\monframework\annotation\MyController.class
+com\monframework\annotation\Session.class
 com\monframework\core\FrontServlet.class

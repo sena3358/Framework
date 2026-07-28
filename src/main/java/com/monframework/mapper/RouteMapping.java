@@ -40,6 +40,7 @@ public class RouteMapping {
     private final UrlPattern urlPattern;
     private final String httpMethod; // GET, POST, PUT, DELETE, etc.
     private final boolean isJson; // true si la méthode retourne du JSON
+    private final ParameterResolver parameterResolver = new ParameterResolver();
 
     public RouteMapping(String className, String controllerValue, String urlValue, String methodName, String httpMethod, boolean isJson) {
         this.className = className;
@@ -83,15 +84,27 @@ public class RouteMapping {
     public String getFullUrl() {
         String controller = controllerValue == null || controllerValue.isEmpty() ? "" : controllerValue;
         String url = urlValue == null || urlValue.isEmpty() ? "" : urlValue;
-        
-        // Ajouter des slashes si nécessaire
-        if (!controller.startsWith("/")) {
+
+        // Normaliser les segments avant de les concaténer.
+        // Si le contrôleur est vide, on ne doit pas produire "//session".
+        if (!controller.isEmpty() && !controller.startsWith("/")) {
             controller = "/" + controller;
         }
+        if (controller.endsWith("/")) {
+            controller = controller.substring(0, controller.length() - 1);
+        }
+
         if (!url.isEmpty() && !url.startsWith("/")) {
             url = "/" + url;
         }
-        
+
+        if (controller.isEmpty()) {
+            return url.isEmpty() ? "/" : url;
+        }
+        if (url.isEmpty()) {
+            return controller;
+        }
+
         return controller + url;
     }
 
@@ -199,9 +212,15 @@ public class RouteMapping {
         List<String> urlParamNames = urlPattern.getParamNames();
         
         for (int i = 0; i < paramTypes.length; i++) {
+            // Cas spécial: injection de la session HTTP via @Session
+            if (paramTypes[i] == Map.class && parameterResolver.isSessionMapParameter(parameters[i])) {
+                args[i] = parameterResolver.resolveSessionMap(request);
+                continue;
+            }
+
             // Cas spécial: si le paramètre est de type Map<String, byte[]>, extraire les fichiers uploadés
-            if (paramTypes[i] == Map.class && isMapOfBytes(parameters[i])) {
-                args[i] = extractUploadedFiles(request);
+            if (paramTypes[i] == Map.class && parameterResolver.isMapOfBytes(parameters[i])) {
+                args[i] = parameterResolver.extractUploadedFiles(request);
                 continue; // Passer au paramètre suivant
             }
             
@@ -286,68 +305,6 @@ public class RouteMapping {
         
         // Par défaut, retourner la valeur String
         return value;
-    }
-
-    /**
-     * Vérifie si un paramètre est de type Map<String, byte[]>
-     */
-    private boolean isMapOfBytes(java.lang.reflect.Parameter parameter) {
-        Type genericType = parameter.getParameterizedType();
-        if (genericType instanceof ParameterizedType) {
-            ParameterizedType paramType = (ParameterizedType) genericType;
-            Type[] typeArgs = paramType.getActualTypeArguments();
-            
-            // Vérifier si c'est Map<String, byte[]>
-            if (typeArgs.length == 2) {
-                Type valueType = typeArgs[1];
-                // Vérifier si le deuxième type est byte[]
-                if (valueType instanceof Class) {
-                    Class<?> valueClass = (Class<?>) valueType;
-                    return valueClass.isArray() && valueClass.getComponentType() == byte.class;
-                }
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Extrait les fichiers uploadés depuis la requête multipart
-     */
-    private Map<String, byte[]> extractUploadedFiles(HttpServletRequest request) {
-        Map<String, byte[]> filesMap = new HashMap<>();
-        
-        if (request == null) {
-            return filesMap;
-        }
-        
-        try {
-            // Récupérer toutes les parties du multipart/form-data
-            Collection<Part> parts = request.getParts();
-            
-            for (Part part : parts) {
-                // Vérifier si c'est un fichier (a un nom de fichier)
-                String fileName = part.getSubmittedFileName();
-                if (fileName != null && !fileName.isEmpty()) {
-                    // Lire les bytes du fichier
-                    InputStream inputStream = part.getInputStream();
-                    byte[] fileBytes = inputStream.readAllBytes();
-                    inputStream.close();
-                    
-                    // Utiliser une clé composite "fieldName:originalFileName" pour préserver le nom original
-                    String fieldName = part.getName();
-                    String compositeKey = fieldName + ":" + fileName;
-                    filesMap.put(compositeKey, fileBytes);
-                    
-                    System.out.println("[DEBUG RouteMapping] Fichier uploadé: " + fieldName + 
-                                     " (nom original: " + fileName + ", taille: " + fileBytes.length + " bytes, clé: " + compositeKey + ")");
-                }
-            }
-        } catch (ServletException | IOException e) {
-            System.err.println("Erreur lors de l'extraction des fichiers: " + e.getMessage());
-            e.printStackTrace();
-        }
-        
-        return filesMap;
     }
 
     /**
